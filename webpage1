@@ -61,4 +61,79 @@
     <h2 class="heading">🎮 FPV Head Tracker Interface</h2>
 
     <div class="value-block">
-      <p>Yaw: <span id="
+      <p>Yaw: <span id="yaw">--</span>°</p>
+      <p>Pitch: <span id="pitch">--</span>°</p>
+    </div>
+
+    <div class="value-block">
+      <p>🔋 Battery: <span id="battery">--</span>%</p>
+      <p>📶 Signal: <span id="signal">--</span> dBm</p>
+      <p>🌡️ Temp: <span id="temp">--</span> °C</p>
+      <p>⏱️ Latency: <span id="latency">--</span> ms</p>
+    </div>
+
+    <button onclick="resetServos()">🔄 Reset Camera Position</button>
+  </div>
+
+  <script>
+    // 🔧 Update to your ESP32-WROOM's IP address
+    const ws = new WebSocket("ws://192.168.43.77:80");
+
+    ws.onopen = () => console.log("✅ WebSocket connected");
+    ws.onclose = () => console.warn("❌ WebSocket disconnected");
+    ws.onerror = err => console.error("WebSocket error:", err);
+
+    ws.onmessage = (msg) => {
+      try {
+        const data = JSON.parse(msg.data);
+        if (data.battery !== undefined) document.getElementById("battery").textContent = data.battery;
+        if (data.signal !== undefined) document.getElementById("signal").textContent = data.signal;
+        if (data.temperature !== undefined) document.getElementById("temp").textContent = data.temperature;
+        if (data.latency !== undefined) document.getElementById("latency").textContent = data.latency;
+      } catch (e) {
+        console.warn("Invalid telemetry data:", msg.data);
+      }
+    };
+
+    function handleOrientation(event) {
+      let yaw = event.alpha || 0;
+      let pitch = event.beta || 0;
+
+      if (pitch > 90) pitch = 90;
+      if (pitch < -90) pitch = -90;
+
+      document.getElementById("yaw").textContent = yaw.toFixed(1);
+      document.getElementById("pitch").textContent = pitch.toFixed(1);
+
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          yaw: Math.round(yaw),
+          pitch: Math.round(pitch)
+        }));
+      }
+    }
+
+    function resetServos() {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ reset: true }));
+      }
+    }
+
+    // iOS Motion Permission
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      document.body.addEventListener("click", () => {
+        DeviceOrientationEvent.requestPermission().then(response => {
+          if (response === "granted") {
+            window.addEventListener("deviceorientation", handleOrientation);
+          } else {
+            alert("Permission denied for motion access.");
+          }
+        });
+      });
+    } else {
+      window.addEventListener("deviceorientation", handleOrientation);
+    }
+  </script>
+</body>
+</html>
+
